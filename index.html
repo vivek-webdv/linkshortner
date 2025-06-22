@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShortLink - Premium URL Shortener</title>
+  <style>
+    :root {
+      --primary: #6c5ce7;
+      --dark: #2d3436;
+      --light: #f5f6fa;
+    }
+    body {
+      background: var(--dark);
+      color: var(--light);
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      text-align: center;
+      flex: 1;
+    }
+    .logo {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--primary);
+    }
+    .input-box {
+      display: flex;
+      gap: 10px;
+      margin: 2rem 0;
+    }
+    input {
+      flex: 1;
+      padding: 15px;
+      border: 2px solid #636e72;
+      border-radius: 8px;
+      background: #3d3d3d;
+      color: white;
+      font-size: 1rem;
+    }
+    button {
+      padding: 15px 30px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    .result-container {
+      background: #3d3d3d;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 2rem;
+      display: none;
+    }
+    .qr-scanner {
+      margin: 20px auto;
+      width: 300px;
+      display: none;
+    }
+    #qr-video {
+      width: 100%;
+      border-radius: 8px;
+    }
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 3rem;
+      flex-wrap: wrap;
+    }
+    .stat-box {
+      background: #3d3d3d;
+      padding: 20px;
+      border-radius: 8px;
+      width: 30%;
+      min-width: 150px;
+      margin: 10px;
+    }
+    footer {
+      margin-top: 3rem;
+      color: #636e72;
+      text-align: center;
+      padding: 1rem;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 15px;
+    }
+    .tab-buttons {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .tab-button {
+      padding: 10px 20px;
+      background: #3d3d3d;
+      border: none;
+      color: white;
+      cursor: pointer;
+    }
+    .tab-button.active {
+      background: var(--primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">ShortLink</div>
+    <p>Premium URL shortener with QR codes and analytics</p>
+    
+    <div class="tab-buttons">
+      <button class="tab-button active" onclick="showTab('shortener')">URL Shortener</button>
+      <button class="tab-button" onclick="showTab('scanner')">QR Scanner</button>
+    </div>
+    
+    <!-- URL Shortener Tab -->
+    <div id="shortener-tab">
+      <div class="input-box">
+        <input type="url" id="longUrl" placeholder="Paste your long URL here">
+        <button onclick="shortenUrl()">Shorten</button>
+      </div>
+      
+      <div class="result-container" id="resultContainer">
+        <h3>Your Short Link:</h3>
+        <a id="shortLink" target="_blank" style="color: var(--primary); word-break: break-all;"></a>
+        <div class="action-buttons">
+          <button onclick="copyLink()">Copy</button>
+          <button onclick="generateQR()">Generate QR</button>
+        </div>
+        <div id="qrCode" style="margin: 20px auto;"></div>
+      </div>
+    </div>
+    
+    <!-- QR Scanner Tab -->
+    <div id="scanner-tab" style="display: none;">
+      <div class="qr-scanner" id="qrScanner">
+        <video id="qr-video" playsinline></video>
+        <button onclick="startScanner()" style="margin-top: 15px;">Start Scanner</button>
+        <button onclick="stopScanner()" style="margin-top: 15px; display: none;" id="stopBtn">Stop Scanner</button>
+      </div>
+      <div id="scanResult" style="margin-top: 20px;"></div>
+    </div>
+    
+    <div class="stats">
+      <div class="stat-box">
+        <h3>50M+</h3>
+        <p>Links Generated</p>
+      </div>
+      <div class="stat-box">
+        <h3>99.9%</h3>
+        <p>Uptime</p>
+      </div>
+      <div class="stat-box">
+        <h3>Secure</h3>
+        <p>HTTPS Protection</p>
+      </div>
+    </div>
+  </div>
+  
+  <footer>
+    © 2023 ShortLink | Terms | Privacy
+  </footer>
+
+  <script>
+    // API Configuration
+    const API_KEY = "e4337b7a77334cd7e2c412e2f0b628a1610615c6";
+    const API_ENDPOINT = "https://api-ssl.bitly.com/v4/shorten";
+    
+    // Tab Management
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      document.getElementById('shortener-tab').style.display = 'none';
+      document.getElementById('scanner-tab').style.display = 'none';
+      document.getElementById(`${tabName}-tab`).style.display = 'block';
+      
+      if (tabName === 'scanner') {
+        document.getElementById('qrScanner').style.display = 'block';
+      } else {
+        stopScanner();
+      }
+    }
+    
+    // URL Shortening
+    async function shortenUrl() {
+      const longUrl = document.getElementById("longUrl").value;
+      if (!longUrl) return alert("Please enter a URL!");
+      
+      try {
+        const response = await fetch(API_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${API_KEY}`
+          },
+          body: JSON.stringify({ 
+            "long_url": longUrl,
+            "domain": "bit.ly"
+          })
+        });
+        
+        if (!response.ok) throw new Error(await response.text());
+        
+        const data = await response.json();
+        document.getElementById("shortLink").href = data.link;
+        document.getElementById("shortLink").innerText = data.link;
+        document.getElementById("resultContainer").style.display = "block";
+      } catch (error) {
+        alert("Error shortening URL: " + error.message);
+        console.error(error);
+      }
+    }
+    
+    function copyLink() {
+      const link = document.getElementById("shortLink").innerText;
+      navigator.clipboard.writeText(link);
+      alert("Copied to clipboard!");
+    }
+    
+    function generateQR() {
+      const shortUrl = document.getElementById("shortLink").innerText;
+      const qrCode = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shortUrl)}`;
+      document.getElementById("qrCode").innerHTML = `
+        <img src="${qrCode}" alt="QR Code">
+        <p style="margin-top: 10px;">Scan this QR code</p>
+      `;
+    }
+    
+    // QR Scanner
+    let scanner = null;
+    
+    function startScanner() {
+      const video = document.getElementById("qr-video");
+      const stopBtn = document.getElementById("stopBtn");
+      
+      stopBtn.style.display = "inline-block";
+      event.target.style.display = "none";
+      
+      scanner = new Instascan.Scanner({ video: video });
+      
+      scanner.addListener('scan', function(content) {
+        document.getElementById("scanResult").innerHTML = `
+          <p>Scanned URL: <a href="${content}" target="_blank">${content}</a></p>
+        `;
+      });
+      
+      Instascan.Camera.getCameras().then(function(cameras) {
+        if (cameras.length > 0) {
+          scanner.start(cameras[0]);
+        } else {
+          alert("No cameras found");
+        }
+      }).catch(function(e) {
+        console.error(e);
+        alert("Camera error: " + e);
+      });
+    }
+    
+    function stopScanner() {
+      if (scanner) {
+        scanner.stop();
+        document.getElementById("qr-video").srcObject = null;
+        document.getElementById("stopBtn").style.display = "none";
+        document.querySelector("#scanner-tab button").style.display = "inline-block";
+      }
+    }
+  </script>
+  
+  <!-- QR Scanner Library -->
+  <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
+</body>
+</html>
